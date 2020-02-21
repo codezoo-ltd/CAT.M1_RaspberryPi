@@ -1,0 +1,2 @@
+# CAT.M1_RaspberryPi
+LGU+ LTE CAT.M1 BG96
