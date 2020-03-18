@@ -9,14 +9,14 @@ ATCmdList = {
     'FWInfo': {'CMD': "AT+CGMR", 'REV': "\r\nOK\r\n"},
     'HWInfo': {'CMD': "AT+CGMM", 'REV': "\r\nOK\r\n"},
     'NumberInfo': {'CMD': "AT+CIMI", 'REV': "\r\nOK\r\n"},
-    'AttachNet' : {'CMD': "AT+CGATT=1", 'REV': "OK\r\n"},
-    'DetachNet' : {'CMD': "AT+CGATT=0", 'REV': "OK\r\n"},
-    'IsAttachNet' : {'CMD': "AT+CEREG?", 'REV': "+CEREG: \r\n"},
-#    'IsAttachNet' : {'CMD': "AT+CEREG?", 'REV': "\r\nOK\r\n"},
-    'OpenUDP' : {'CMD': "AT+NSOCR=DGRAM,17,", 'REV': "OK\r\n"},
-    'CloseUDP' : {'CMD': "AT+NSOCL=", 'REV': "\r\n"}, 
-    'SendUDP' : {'CMD': "AT+NSOST=", 'REV': "\r\n"},
-    'RecevieUDP' : {'CMD': "AT+NSORF=", 'REV': "OK\r\n"},
+    'AttachNet' : {'CMD': "AT+QIACT=1", 'REV': "\r\nOK\r\n"},
+    'myIP' : {'CMD': "AT+QIACT?", 'REV': "\r\nOK\r\n"},
+    'DetachNet' : {'CMD': "AT+QIDEACT=1", 'REV': "\r\nOK\r\n"},
+    'IsAttachNet' : {'CMD': "AT+CEREG?", 'REV': "\r\nOK\r\n"},
+    'OpenSCK' : {'CMD': "AT+QIOPEN=1,", 'REV': "\r\n+QIOPEN"},
+    'CloseSCK' : {'CMD': "AT+QICLOSE=", 'REV': "\r\nOK\r\n"}, 
+    'SendSCK' : {'CMD': "AT+QISENDEX=", 'REV': "\r\nSEND OK"},
+    'ReceiveSCK' : {'CMD': "AT+QIRD=", 'REV': "\r\nOK\r\n"},
 }
 
 IsRevModemData = False
@@ -45,21 +45,17 @@ class CATM1:
         GPIO.setup(self.pwrPinNum, GPIO.OUT)
         GPIO.setup(self.statPinNum, GPIO.IN)
 
-		# Check Modem Power State Check
+		# Modem Power Power On Reset
         if(GPIO.input(self.statPinNum)==1):
-			print "Modem Power ON State Reset Modem"
-			GPIO.output(self.pwrPinNum, GPIO.HIGH)
-			time.sleep(0.8)
-			GPIO.output(self.pwrPinNum, GPIO.LOW)
-			time.sleep(3)
+			print("Reset Modem..")
+			self.pwrOffModem()
 
-		# Modem Power ON
-        GPIO.output(self.pwrPinNum, GPIO.HIGH)
-        time.sleep(0.6)
-        GPIO.output(self.pwrPinNum, GPIO.LOW)
-        time.sleep(5)
+        print "Start Modem.."
+        self.pwrOnModem()
         if(GPIO.input(self.statPinNum) == 1):
-			print "Modem Power ON State Start Modem"
+			print("Modem Ready..")
+        else:
+			print("Modem Not Ready..")
 
         self.compose = ""
         self.response = ""
@@ -100,6 +96,10 @@ class CATM1:
         ''' set ip address'''
         self.ipAddress = ip
     
+    def setDNSAddress(self, dns):
+        ''' set ip address'''
+        self.ipAddress = dns
+
     def setPortNum(self, port):
         ''' set port number '''
         self.portNum = str(port)
@@ -123,7 +123,7 @@ class CATM1:
             while(CATM1.ser.inWaiting()):
                 try:
                     self.response += CATM1.ser.read(CATM1.ser.inWaiting()).decode('utf-8', errors='ignore')
-                    print("read response: " + self.response)
+                    #print("read response: " + self.response)
                     response = self.response
                     self.__delay(50)
                 except Exception as e:
@@ -188,60 +188,93 @@ class CATM1:
         return data[:data.index(ATCmdList['NumberInfo']['REV'])]
  
     def attachNetwork(self, connect=True):
-        ''' connect/disconnect base station fo operator '''
+        ''' Activate/Deactivate a PDP Context '''
         if(connect):
-            return self.sendATCmd(ATCmdList['AttachNet']['CMD'], ATCmdList['AttachNet']['REV'], 8)
+            return self.sendATCmd(ATCmdList['AttachNet']['CMD'], ATCmdList['AttachNet']['REV'], 10)
         else:
-            return self.sendATCmd(ATCmdList['DetachNet']['CMD'], ATCmdList['DetachNet']['REV'], 8)
+            return self.sendATCmd(ATCmdList['DetachNet']['CMD'], ATCmdList['DetachNet']['REV'], 10)
     
     def isAttachNetwork(self):
-        ''' true : LTE CAT.M1 Network attached, false : LTE CAT.M1 Network detached ''' 
-        return (self.sendATCmd(ATCmdList['IsAttachNet']['CMD'], ATCmdList['IsAttachNet']['REV']) != "Error")
-#        data = self.sendATCmd(ATCmdList['IsAttachNet']['CMD'], ATCmdList['IsAttachNet']['REV'])
-#        return data[:data.index(ATCmdList['IsAttachNet']['REV'])]
-
-    # UDP methods 
-    def openUDPSockect(self, port=10):
-        ''' port = 0~65535 (reserve 5683) '''
-        command = ATCmdList['OpenUDP']['CMD'] + str(port) + ',1'
-        mySocket = self.sendATCmd(command, ATCmdList['OpenUDP']['REV'])
-
-        if(mySocket != "Error"):
-            return int(re.search(r'\d+', mySocket).group())
+        ''' True : LTE CAT.M1 Network attached, False : LTE CAT.M1 Network detached ''' 
+        data = self.sendATCmd(ATCmdList['IsAttachNet']['CMD'], ATCmdList['IsAttachNet']['REV'])
+        _str = ',1'
+        if(data.find(_str)==-1):
+            return False
         else:
-            return -1
-    
-    def closeUDPSocket(self, mySocket):
-        command = ATCmdList['CloseUDP']['CMD'] + str(mySocket)
-        self.sendATCmd(command, ATCmdList['CloseUDP']['REV'])
-        
-    # data type
-    def sendUDPData(self, mySocket, data, ip_address=None, ip_port=None):
-        ''' send UDP data 
-            max data size: 256bytes -> recomand 250bytes 
-            send data is Nibble type (ex, "A" -> 0x41)'''
-        command = ATCmdList['SendUDP']['CMD'] + str(mySocket) + ","
+            return True
+
+    def myIP(self):
+        ''' get modem IP Address '''
+        data = self.sendATCmd(ATCmdList['myIP']['CMD'], ATCmdList['myIP']['REV'], 10)
+        _str = ',"'
+        _len = len(data)-7
+
+        idx = data.find(_str)
+        if(idx == -1):
+            return False
+        else:
+            return data[idx+1:_len]
+ 
+    # Socket methods 
+    def openSocket(self, mySocket, isTCP, ip_address=None, ip_port=None):
+        if (isTCP == True):
+            command = ATCmdList['OpenSCK']['CMD'] + str(mySocket) + ',"TCP",'
+        else:
+            command = ATCmdList['OpenSCK']['CMD'] + str(mySocket) + ',"UDP",'
+
         if ip_address is None:
             command += self.ipAddress
         else:
             command += str(ip_address)
-        command += ","
+
+        command += ','
         if ip_port is None:
             command += self.portNum
         else:
             command += str(ip_port)
-        command += ","
-        command += str(len(data)) + "," + data.encode().hex()
+        command += ',0,0'	#Buffer access mode 
 
-        self.sendATCmd(command, ATCmdList['SendUDP']['REV'], 10)
+        #print(command)
+
+        data = self.sendATCmd(command, ATCmdList['OpenSCK']['REV'], 10)
+
+        if( data  == "Error" ):
+            return False
+        else:
+            return True
+    
+    def closeSocket(self, mySocket):
+        command = ATCmdList['CloseSCK']['CMD'] + str(mySocket)
+        command += ',3'	#TimeOut Default 10 to 3 seconds
+        data = self.sendATCmd(command, ATCmdList['CloseSCK']['REV'], 10)
+        if( data  == "Error" ):
+            return False
+        else:
+            return True
+        
+    # data type
+    def sendSCKData(self, mySocket, data):
+        ''' send UDP data 
+            max data size: 512 bytes (Hex string) '''
+        command = ATCmdList['SendSCK']['CMD'] + str(mySocket) + ","
+        command += '"'
+        command += data.encode("hex")
+        command += '"'
+
+        result = self.sendATCmd(command, ATCmdList['SendSCK']['REV'], 10)
+
+        if( result == "Error" ):
+			return False
+        else:
+		    return True
 
     def __revModem_Thread(self):
-        if self.__readATResponse("+NSONMI"):
+        if self.__readATResponse('+QIURC: "recv"'):
             global IsRevModemData
             IsRevModemData  = True
 
-    def recevieUDPData(self, mySocket, rev_length=256, rev_timeOut=10):
-        ''' recevie buffer size : 512 bytes 
+    def receiveSCKData(self, mySocket, rev_length=256, rev_timeOut=10):
+        ''' recevie buffer size : 1460 bytes 
         return : ['ip','port','data length', 'data', 'renainnig length']'''
         duration = 500
         count = ((rev_timeOut*1000)/duration)
@@ -255,10 +288,9 @@ class CATM1:
         t1.start()
         for i in range(0,int(count)):
             if IsRevModemData:
-                datareceve = True
-                data = self.response.split(',')
-                data_length = data[len(data)-1]
-                break
+               datareceve = True
+               break
+
             else:
                 #print("wait index {}".format(i))
                 self.__delay(duration)
@@ -271,14 +303,16 @@ class CATM1:
                 print(e)
             
         if(datareceve):
-            if int(data_length) > rev_length :
-                data_length = str(rev_length)
-            command = ATCmdList['RecevieUDP']['CMD'] + str(mySocket) + "," + data_length
-            if (self.sendATCmd(command, ATCmdList['RecevieUDP']['REV']) != "Error"):
-               data = self.response.split(',')
-               data[4] = bytes.fromhex(data[4]).decode('utf-8')
-               data[5] = re.search(r'\d+', data[5]).group()
-               return data[1:]
+            command = ATCmdList['ReceiveSCK']['CMD'] + str(mySocket)
+            if (self.sendATCmd(command, ATCmdList['ReceiveSCK']['REV']) != "Error"):
+               data = self.response.split('\n')
+
+               result = data[2]
+               result2 = result[:-1]
+               length = len(result2)
+               #print( str(length) )
+		       	   
+               return result2
 
         print("Data read fail")
         return ['-1','-1','-1','-1','-1']
