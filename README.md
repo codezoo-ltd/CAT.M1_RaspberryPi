@@ -1,2 +1,2 @@
 # CAT.M1_RaspberryPi
-LGU+ LTE CAT.M1 BG96
+LTE CAT.M1 BG96 RaspberryPi Open Source (with Python)
