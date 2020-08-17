@@ -47,15 +47,15 @@ class CATM1:
 
 		# Modem Power Power On Reset
         if(GPIO.input(self.statPinNum)==1):
-			print("Reset Modem..")
-			self.pwrOffModem()
+            print("Reset Modem..")
+            self.pwrOffModem()
 
-        print "Start Modem.."
+        print ("Start Modem..")
         self.pwrOnModem()
         if(GPIO.input(self.statPinNum) == 1):
-			print("Modem Ready..")
+            print("Modem Ready..")
         else:
-			print("Modem Not Ready..")
+            print("Modem Not Ready..")
 
         self.compose = ""
         self.response = ""
@@ -89,8 +89,8 @@ class CATM1:
         time.sleep(3)
 
     def resetModem(self):
-		self.pwrOffModem()
-		self.pwrOnModem()
+        self.pwrOffModem()
+        self.pwrOnModem()
 
     def setIPAddress(self, ip):
         ''' set ip address'''
@@ -258,15 +258,15 @@ class CATM1:
             max data size: 512 bytes (Hex string) '''
         command = ATCmdList['SendSCK']['CMD'] + str(mySocket) + ","
         command += '"'
-        command += data.encode("hex")
+        command += data.encode("utf-8").hex()
         command += '"'
 
         result = self.sendATCmd(command, ATCmdList['SendSCK']['REV'], 10)
 
         if( result == "Error" ):
-			return False
+            return False
         else:
-		    return True
+            return True
 
     def __revModem_Thread(self):
         if self.__readATResponse('+QIURC: "recv"'):
