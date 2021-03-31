@@ -197,7 +197,7 @@ class CATM1:
     def isAttachNetwork(self):
         ''' True : LTE CAT.M1 Network attached, False : LTE CAT.M1 Network detached ''' 
         data = self.sendATCmd(ATCmdList['IsAttachNet']['CMD'], ATCmdList['IsAttachNet']['REV'])
-        _str = ',1'
+        _str = ',5'
         if(data.find(_str)==-1):
             return False
         else:
